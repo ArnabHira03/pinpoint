@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Pinpoint</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <label for="name">Your name</label>
+    <input id="name" maxlength="50" placeholder="Shown on your comments" autocomplete="name" />
+
+    <label for="review">Review</label>
+    <select id="review"></select>
+    <p id="no-reviews" class="hint">Create a review, or join one with a share code.</p>
+    <p id="share" class="share">
+      Share code: <code id="code"></code>
+      <button id="copy" type="button">Copy</button>
+    </p>
+
+    <form id="create-form" class="row">
+      <input id="new-name" maxlength="100" placeholder="New review name" aria-label="New review name" />
+      <button type="submit">Create</button>
+    </form>
+    <form id="join-form" class="row">
+      <input id="join-code" maxlength="20" placeholder="Share code" aria-label="Share code to join" />
+      <button type="submit">Join</button>
+    </form>
+
+    <p id="message" class="message" role="alert"></p>
+    <button id="start" class="primary" type="button">Comment on this page</button>
+    <script src="popup.js"></script>
+  </body>
+</html>

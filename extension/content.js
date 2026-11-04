@@ -50,14 +50,18 @@
       padding: 10px 12px; border-bottom: 1px solid #e5e7eb; font-size: 14px; font-weight: 600;
     }
     .panel.collapsed .head { border-bottom: 0; }
+    .panel.collapsed .error { max-width: 300px; }
     .list { flex: 1; overflow-y: auto; overscroll-behavior: contain; }
     .empty { padding: 16px 12px; color: #4b5563; font-size: 13px; line-height: 1.4; }
     .error { padding: 8px 12px; background: #fee2e2; color: #991b1b; font-size: 13px; line-height: 1.4; }
+    .error button { display: block; margin-top: 6px; }
     .row { display: block; padding: 10px 12px; border-bottom: 1px solid #e5e7eb; cursor: pointer; }
     .row:hover { background: #f3f4f6; }
     .row.selected { background: #dbeafe; }
     .number { margin-right: 6px; color: #dc2626; font-size: 13px; font-weight: 700; }
-    .text { font-size: 13px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .author { font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
+    .review { margin-top: 2px; color: #4b5563; font-size: 12px; font-weight: 400; overflow-wrap: anywhere; }
+    .text { display: block; margin-top: 4px; font-size: 13px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; }
     .note { margin-top: 6px; color: #92400e; font-size: 12px; line-height: 1.4; }
   `;
 
@@ -65,15 +69,16 @@
   const EDITOR_HEIGHT = 170;
   const EDGE_GAP = 8;
   const SNIPPET_LENGTH = 80;
+  const COMMENT_LIMIT = 2000;
   const NOTES = {
     moved: "May have moved: this part of the page changed.",
     hidden: "Not visible right now, possibly because of the window size.",
     detached: "Detached: this part of the page is gone.",
   };
 
-  const emptyPage = () => ({ nextNumber: 1, pins: [] });
+  const emptyPage = () => ({ pins: [] });
   // Query strings and hashes are left out: they can hold tokens and tracking data.
-  const pageKey = () => `page:${location.origin}${location.pathname}`;
+  const pageKey = () => `${location.origin}${location.pathname}`;
 
   let key = null;
   let page = emptyPage();
@@ -81,6 +86,9 @@
   let draft = null;
   let selected = null;
   let editing = null;
+  let editingText = "";
+  let loadFailed = false;
+  let reviewName = "";
   let confirmingDelete = null;
   let collapsed = false;
   let errorMessage = "";
@@ -148,18 +156,28 @@
     openDraft(event.clientX, event.clientY);
   });
 
-  // Writes first and updates the screen after, so a failed save loses nothing.
-  const commit = async (next) => {
+  // All server calls go through the service worker. On failure the caller leaves
+  // its comment box open, so nothing typed is lost.
+  const api = async (request) => {
+    let result;
     try {
-      await chrome.storage.local.set({ [key]: next });
-      page = next;
-      errorMessage = "";
-      return true;
+      result = await chrome.runtime.sendMessage(request);
     } catch {
-      errorMessage = "Couldn't save. Reload the page and try again.";
+      errorMessage = "Pinpoint was updated. Reload the page and try again.";
       render();
-      return false;
+      return null;
     }
+    if (result?.ok) {
+      errorMessage = "";
+      return result;
+    }
+    if (result?.status === 404 && ["updateComment", "deleteComment"].includes(request.action)) {
+      // Someone else removed it, so this list is out of date.
+      await load();
+    }
+    errorMessage = result?.message ?? "Something went wrong. Try again.";
+    render();
+    return null;
   };
 
   const select = (number, { scrollToPin = false } = {}) => {
@@ -181,6 +199,8 @@
     pin.style.top = `${y}px`;
     return pin;
   };
+
+  const clamp = (value) => Math.min(1, Math.max(0, value));
 
   const snippetOf = (node) =>
     (node.textContent || node.getAttribute("alt") || node.getAttribute("aria-label") || "")
@@ -221,15 +241,14 @@
     const rect = target.getBoundingClientRect();
     return {
       selector: selectorFor(target),
-      offsetX: rect.width ? (clientX - rect.left) / rect.width : 0,
-      offsetY: rect.height ? (clientY - rect.top) / rect.height : 0,
+      // Whole-pixel clicks can land just outside an element's fractional edges.
+      offsetX: rect.width ? clamp((clientX - rect.left) / rect.width) : 0,
+      offsetY: rect.height ? clamp((clientY - rect.top) / rect.height) : 0,
       textSnippet: snippetOf(target),
     };
   };
 
   const locate = (pin) => {
-    // Pins saved before anchoring only have a pixel position.
-    if (!pin.selector) return { pin, target: null, status: "moved" };
     let target = null;
     try {
       target = document.querySelector(pin.selector);
@@ -251,14 +270,9 @@
     const origin = host.getBoundingClientRect();
     for (const [number, node] of pinNodes) {
       const { pin, target } = located.get(number);
-      if (target) {
-        const rect = target.getBoundingClientRect();
-        node.style.left = `${rect.left + pin.offsetX * rect.width - origin.left}px`;
-        node.style.top = `${rect.top + pin.offsetY * rect.height - origin.top}px`;
-      } else {
-        node.style.left = `${pin.x}px`;
-        node.style.top = `${pin.y}px`;
-      }
+      const rect = target.getBoundingClientRect();
+      node.style.left = `${rect.left + pin.offsetX * rect.width - origin.left}px`;
+      node.style.top = `${rect.top + pin.offsetY * rect.height - origin.top}px`;
     }
   };
 
@@ -287,40 +301,43 @@
     positionPins();
   };
 
-  const saveEdit = async (number, value) => {
-    const comment = value.trim();
+  const saveEdit = async (number) => {
+    const comment = editingText.trim();
     if (!comment) return;
-    const next = {
-      ...page,
-      pins: page.pins.map((pin) => (pin.number === number ? { ...pin, comment } : pin)),
-    };
-    if (await commit(next)) {
+    const { id } = page.pins.find((pin) => pin.number === number);
+    const result = await api({ action: "updateComment", id, comment });
+    if (result) {
+      page.pins = page.pins.map((pin) => (pin.number === number ? result.pin : pin));
       editing = null;
       render();
     }
   };
 
   const deletePin = async (number) => {
-    // nextNumber stays as it is, so a deleted pin's number is never reused.
-    const next = { ...page, pins: page.pins.filter((pin) => pin.number !== number) };
-    if (await commit(next)) {
+    const { id } = page.pins.find((pin) => pin.number === number);
+    if (await api({ action: "deleteComment", id })) {
+      page.pins = page.pins.filter((pin) => pin.number !== number);
       confirmingDelete = null;
       if (selected === number) selected = null;
       render();
     }
   };
 
-  const renderRow = ({ number, comment }) => {
+  const renderRow = ({ number, comment, authorName }) => {
     const row = el("div", number === selected ? "row selected" : "row");
     row.dataset.number = number;
-    row.append(el("span", "number", String(number)));
+    row.append(el("span", "number", String(number)), el("span", "author", authorName || "Unknown"));
 
     if (editing === number) {
       const textarea = el("textarea");
-      textarea.value = comment;
+      textarea.value = editingText;
+      textarea.maxLength = COMMENT_LIMIT;
+      textarea.addEventListener("input", () => {
+        editingText = textarea.value;
+      });
       textarea.setAttribute("aria-label", `Edit comment ${number}`);
       textarea.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) saveEdit(number, textarea.value);
+        if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) saveEdit(number);
       });
       const actions = el("div", "actions");
       actions.append(
@@ -328,7 +345,7 @@
           editing = null;
           render();
         }),
-        button("Save", "save", () => saveEdit(number, textarea.value))
+        button("Save", "save", () => saveEdit(number))
       );
       row.append(textarea, actions);
       return row;
@@ -350,6 +367,7 @@
       actions.append(
         button("Edit", "", () => {
           editing = number;
+          editingText = comment;
           confirmingDelete = null;
           render();
           panel.querySelector("textarea")?.focus();
@@ -368,20 +386,35 @@
   const renderPanel = () => {
     panel.classList.toggle("collapsed", collapsed);
     const head = el("div", "head");
+    const title = el("div", "", `Comments (${page.pins.length})`);
+    if (reviewName) title.append(el("div", "review", reviewName));
     head.append(
-      el("span", "", `Comments (${page.pins.length})`),
+      title,
       button(collapsed ? "Show" : "Hide", "", () => {
         collapsed = !collapsed;
         renderPanel();
       })
     );
+    const parts = [head];
+    if (errorMessage) {
+      // Outside the list, so errors still show when the panel is collapsed.
+      const error = el("div", "error", errorMessage);
+      if (loadFailed) {
+        error.append(
+          button("Retry", "", async () => {
+            await load();
+            render();
+          })
+        );
+      }
+      parts.push(error);
+    }
     const list = el("div", "list");
-    if (errorMessage) list.append(el("div", "error", errorMessage));
-    if (page.pins.length === 0) {
+    if (page.pins.length === 0 && !loadFailed) {
       list.append(el("div", "empty", "No comments yet. Click the page to add one."));
     }
     list.append(...page.pins.map(renderRow));
-    panel.replaceChildren(head, list);
+    panel.replaceChildren(...parts, list);
   };
 
   const render = () => {
@@ -397,22 +430,25 @@
   };
 
   const saveDraft = async () => {
-    const comment = draft.textarea.value.trim();
+    // A slow save must not be sent twice by a second click.
+    if (!draft || draft.saving) return;
+    const current = draft;
+    const comment = current.textarea.value.trim();
     if (!comment) {
-      draft.textarea.focus();
+      current.textarea.focus();
       return;
     }
-    const number = page.nextNumber;
-    const saved = await commit({
-      nextNumber: number + 1,
-      pins: [...page.pins, { number, ...draft.anchor, comment, createdAt: new Date().toISOString() }],
-    });
-    // On failure the box stays open, so the typed comment is not lost.
-    if (saved) {
-      closeDraft();
-      selected = number;
-      render();
+    const url = key;
+    current.saving = true;
+    const result = await api({ action: "createComment", url, anchor: current.anchor, comment });
+    current.saving = false;
+    if (!result) return;
+    if (draft === current) closeDraft();
+    if (key === url) {
+      page.pins = [...page.pins, result.pin];
+      selected = result.pin.number;
     }
+    render();
   };
 
   const openDraft = (clientX, clientY) => {
@@ -422,7 +458,7 @@
     const x = clientX - origin.left;
     const y = clientY - origin.top;
     const anchor = anchorAt(clientX, clientY);
-    const pin = makePin(x, y, String(page.nextNumber));
+    const pin = makePin(x, y, "+");
     const editor = el("div", "editor");
     // Keep the box inside the visible part of the page and clear of the panel.
     const panelWidth = panel.getBoundingClientRect().width;
@@ -435,6 +471,7 @@
 
     const textarea = el("textarea");
     textarea.placeholder = "Write your comment";
+    textarea.maxLength = COMMENT_LIMIT;
     textarea.setAttribute("aria-label", "Comment");
     textarea.addEventListener("keydown", (event) => {
       if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) saveDraft();
@@ -467,21 +504,27 @@
 
   const load = async () => {
     const loading = pageKey();
+    if (key !== loading) page = emptyPage();
     key = loading;
-    const stored = await chrome.storage.local.get(loading);
+    const result = await api({ action: "listComments", url: loading });
     if (key !== loading) return;
-    page = stored[loading] ?? emptyPage();
-    selected = editing = confirmingDelete = null;
+    loadFailed = !result;
+    if (result) {
+      page = { pins: result.pins };
+      reviewName = result.reviewName;
+      selected = editing = confirmingDelete = null;
+    }
   };
 
   const setActive = async (next) => {
     active = next;
     closeDraft();
     if (active) {
-      // Some sites change the URL without a reload, so check which page this is.
-      if (key !== pageKey()) await load();
       root.append(catcher, bar, panel);
       window.addEventListener("keydown", onKeydown, true);
+      render();
+      // Always ask the server, since other people may have commented meanwhile.
+      await load();
     } else {
       selected = editing = confirmingDelete = null;
       catcher.remove();
@@ -492,12 +535,12 @@
     render();
   };
 
-  // Keeps two tabs on the same page in step, so neither overwrites the other.
+  // The review can be switched in the popup while comment mode is on.
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== "local" || !changes[key]) return;
-    page = changes[key].newValue ?? emptyPage();
-    renderPins();
-    if (editing === null) renderPanel();
+    if (area === "local" && changes.activeReviewId) {
+      closeDraft();
+      load().then(render);
+    }
   });
 
   const statusesOf = () => [...located.values()].map(({ status }) => status).join();

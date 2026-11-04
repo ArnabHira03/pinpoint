@@ -1,0 +1,16 @@
+* { box-sizing: border-box; font-family: system-ui, sans-serif; }
+body { width: 300px; margin: 0; padding: 12px; background: #fff; color: #111827; font-size: 13px; }
+label { display: block; margin: 10px 0 4px; font-weight: 600; }
+label:first-child { margin-top: 0; }
+input, select { width: 100%; padding: 6px; border: 1px solid #9ca3af; border-radius: 4px; background: #fff; color: #111827; font-size: 13px; }
+button { padding: 6px 10px; border: 1px solid #9ca3af; border-radius: 4px; background: #fff; color: #111827; font-size: 13px; cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .5; }
+.row { display: flex; gap: 6px; margin-top: 8px; }
+.row input { flex: 1; min-width: 0; }
+.hint { margin: 6px 0 0; color: #4b5563; }
+.share { display: flex; align-items: center; gap: 6px; margin: 8px 0 0; }
+.share code { font-family: ui-monospace, monospace; font-size: 14px; font-weight: 700; }
+.share button { margin-left: auto; padding: 2px 8px; }
+.message { min-height: 18px; margin: 10px 0; color: #991b1b; line-height: 1.4; }
+.primary { width: 100%; border-color: #dc2626; background: #dc2626; color: #fff; font-weight: 600; }
+[hidden] { display: none !important; }
