@@ -27,7 +27,7 @@ Who can do what:
 Your name is fixed when you join a review. Removing the extension loses its keys: you can
 rejoin with the share code, but you become a new member and can't change your old comments.
 
-For local use, the backend must run on port 8000.
+The extension uses the hosted API at https://pinpoint-fv8n.onrender.com. To use a local backend instead, change API in extension/background.js and host_permissions in extension/manifest.json back to http://localhost:8000.
 Comments are saved on the server, in backend/data/. If the server is down, an error appears
 and whatever you typed stays in its box.
 

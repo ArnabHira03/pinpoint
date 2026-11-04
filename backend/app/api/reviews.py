@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import ReviewMember, WebComment
-from ..schemas import ReviewAccess, ReviewCreate, ReviewJoin, ReviewOut, WebCommentCreate, WebCommentOut, WebCommentUpdate, normalize_page_url
+from ..schemas import ReviewAccess, ReviewCreate, ReviewJoin, ReviewOut, ReviewPageOut, WebCommentCreate, WebCommentOut, WebCommentUpdate, normalize_page_url
 from ..services import reviews as service
 
 router = APIRouter(prefix="/api", tags=["reviews"])
@@ -107,6 +107,11 @@ def replace_share_code(member: ReviewMember = Depends(owner_of_review), db: Sess
 def delete_review(member: ReviewMember = Depends(owner_of_review), db: Session = Depends(get_db)):
     service.delete_review(db, member.review)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/reviews/{review_id}/pages", response_model=list[ReviewPageOut])
+def list_pages(member: ReviewMember = Depends(member_of_review), db: Session = Depends(get_db)):
+    return service.list_pages_with_comments(db, member.review_id)
 
 
 @router.get("/reviews/{review_id}/comments", response_model=list[WebCommentOut])

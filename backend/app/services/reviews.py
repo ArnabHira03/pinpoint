@@ -1,7 +1,7 @@
 import hashlib
 import secrets
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -61,6 +61,17 @@ def list_comments(db: Session, review_id: int, url: str) -> list[WebComment]:
             .order_by(WebComment.number)
         )
     )
+
+
+def list_pages_with_comments(db: Session, review_id: int) -> list[dict]:
+    rows = db.execute(
+        select(ReviewPage.url, func.count(WebComment.id))
+        .join(WebComment, WebComment.page_id == ReviewPage.id)
+        .where(ReviewPage.review_id == review_id)
+        .group_by(ReviewPage.url)
+        .order_by(ReviewPage.url)
+    )
+    return [{"url": url, "comment_count": count} for url, count in rows]
 
 
 def _get_or_create_page(db: Session, review_id: int, url: str) -> ReviewPage:

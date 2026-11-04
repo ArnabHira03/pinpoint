@@ -1,4 +1,4 @@
-const API = "http://localhost:8000/api";
+const API = "https://pinpoint-fv8n.onrender.com/api";
 // A hosted server asleep on its free plan takes about a minute to wake.
 const TIMEOUT_MS = 90000;
 const OFFLINE = "Can't reach the server. Check your connection and try again. Nothing was lost.";
@@ -86,6 +86,8 @@ const toReview = (review) => ({
   shareCode: review.share_code,
 });
 
+const toOtherPage = (page) => ({ url: page.url, commentCount: page.comment_count });
+
 const toPin = (comment) => ({
   id: comment.id,
   number: comment.number,
@@ -104,8 +106,14 @@ const PAGE_ACTIONS = {
   async listComments({ url }) {
     const { review, key } = await currentSetup();
     const query = new URLSearchParams({ url });
-    const comments = await withReviewMessage(() => request(`/reviews/${review.id}/comments?${query}`, { key }));
-    return { pins: comments.map(toPin), reviewName: review.name };
+    const [comments, pages] = await withReviewMessage(() =>
+      Promise.all([request(`/reviews/${review.id}/comments?${query}`, { key }), request(`/reviews/${review.id}/pages`, { key })])
+    );
+    return {
+      pins: comments.map(toPin),
+      otherPages: pages.filter((page) => page.url !== url).map(toOtherPage),
+      reviewName: review.name,
+    };
   },
   async createComment({ url, anchor, comment }) {
     const { review, key } = await currentSetup();

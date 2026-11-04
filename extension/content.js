@@ -62,6 +62,9 @@
     .author { font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
     .review { margin-top: 2px; color: #4b5563; font-size: 12px; font-weight: 400; overflow-wrap: anywhere; }
     .text { display: block; margin-top: 4px; font-size: 13px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .pages { padding: 10px 12px; font-size: 12px; line-height: 1.4; }
+    .pages-title { margin-bottom: 4px; color: #4b5563; font-weight: 600; }
+    .page-link { display: block; padding: 2px 0; color: #1d4ed8; overflow-wrap: anywhere; }
     .note { margin-top: 6px; color: #92400e; font-size: 12px; line-height: 1.4; }
   `;
 
@@ -78,6 +81,7 @@
 
   const emptyPage = () => ({ pins: [] });
   // Query strings and hashes are left out: they can hold tokens and tracking data.
+  const REFRESH_MS = 5000;
   const pageKey = () => `${location.origin}${location.pathname}`;
 
   let key = null;
@@ -92,6 +96,11 @@
   let confirmingDelete = null;
   let collapsed = false;
   let errorMessage = "";
+  let otherPages = [];
+  // For telling whether a refresh started before something else changed the list.
+  let apiCalls = 0;
+  let apiCallsRunning = 0;
+  let refreshing = false;
   // Pin number -> { pin, target, status }, worked out from the live page.
   let located = new Map();
   const pinNodes = new Map();
@@ -160,6 +169,8 @@
   // its comment box open, so nothing typed is lost.
   const api = async (request) => {
     let result;
+    apiCalls += 1;
+    apiCallsRunning += 1;
     // A sleeping server takes a while to answer, which shouldn't look like a hang.
     const slowNotice = setTimeout(() => {
       errorMessage = "Waking the server. This can take about a minute.";
@@ -172,6 +183,7 @@
       render();
       return null;
     } finally {
+      apiCallsRunning -= 1;
       clearTimeout(slowNotice);
     }
     if (result?.ok) {
@@ -397,6 +409,21 @@
     return row;
   };
 
+  const renderOtherPages = () => {
+    const section = el("div", "pages");
+    section.append(el("div", "pages-title", "Other pages in this review"));
+    for (const { url, commentCount } of otherPages) {
+      // The server only keeps http and https addresses, but pages are never trusted.
+      if (!/^https?:\/\//.test(url)) continue;
+      const link = el("a", "page-link", `${url.replace(/^https?:\/\//, "")} (${commentCount})`);
+      link.href = url;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      section.append(link);
+    }
+    return section;
+  };
+
   const renderPanel = () => {
     panel.classList.toggle("collapsed", collapsed);
     const head = el("div", "head");
@@ -428,6 +455,7 @@
       list.append(el("div", "empty", "No comments yet. Click the page to add one."));
     }
     list.append(...page.pins.map(renderRow));
+    if (otherPages.length > 0) list.append(renderOtherPages());
     panel.replaceChildren(...parts, list);
   };
 
@@ -518,17 +546,62 @@
 
   const load = async () => {
     const loading = pageKey();
-    if (key !== loading) page = emptyPage();
+    if (key !== loading) {
+      page = emptyPage();
+      otherPages = [];
+    }
     key = loading;
     const result = await api({ action: "listComments", url: loading });
     if (key !== loading) return;
     loadFailed = !result;
     if (result) {
       page = { pins: result.pins };
+      otherPages = result.otherPages;
       reviewName = result.reviewName;
       selected = editing = confirmingDelete = null;
     }
   };
+
+  const busyInPanel = () => editing !== null || confirmingDelete !== null;
+
+  // Picks up other people's comments. Failures stay quiet and the next try may succeed,
+  // and anything being typed or confirmed is left alone until it's finished.
+  const refreshComments = async () => {
+    if (!host.isConnected) {
+      clearInterval(refreshTimer); // The extension was reloaded, and a new overlay took over.
+      return;
+    }
+    // Skipped in background tabs, so the free server can sleep when nobody is looking.
+    if (!active || document.hidden || refreshing || apiCallsRunning > 0 || busyInPanel()) return;
+    const asked = { key, calls: apiCalls };
+    let result;
+    refreshing = true;
+    try {
+      result = await chrome.runtime.sendMessage({ action: "listComments", url: key });
+    } catch {
+      return;
+    } finally {
+      refreshing = false;
+    }
+    // Something else changed the list while this was on its way, so this answer may be old.
+    if (!result?.ok || !active || busyInPanel() || asked.key !== key || asked.calls !== apiCalls) return;
+    const changed =
+      JSON.stringify([result.pins, result.otherPages]) !== JSON.stringify([page.pins, otherPages]);
+    if (!changed && !loadFailed) return;
+    page = { pins: result.pins };
+    otherPages = result.otherPages;
+    reviewName = result.reviewName;
+    if (loadFailed) {
+      loadFailed = false;
+      errorMessage = "";
+    }
+    if (!page.pins.some((pin) => pin.number === selected)) selected = null;
+    const scrollTop = panel.querySelector(".list")?.scrollTop ?? 0;
+    render();
+    const list = panel.querySelector(".list");
+    if (list) list.scrollTop = scrollTop;
+  };
+  const refreshTimer = setInterval(refreshComments, REFRESH_MS);
 
   const setActive = async (next) => {
     active = next;

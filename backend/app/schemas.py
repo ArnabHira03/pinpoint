@@ -57,6 +57,11 @@ class ReviewAccess(ReviewOut):
     member_key: str
 
 
+class ReviewPageOut(BaseModel):
+    url: str
+    comment_count: int
+
+
 class WebCommentCreate(BaseModel):
     url: PageUrl
     selector: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]

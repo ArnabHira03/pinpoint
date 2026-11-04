@@ -95,6 +95,7 @@ def test_the_expected_routes_are_protected(client):
         ("GET", "/api/reviews/{review_id}"),
         ("DELETE", "/api/reviews/{review_id}"),
         ("POST", "/api/reviews/{review_id}/share-code"),
+        ("GET", "/api/reviews/{review_id}/pages"),
         ("GET", "/api/reviews/{review_id}/comments"),
         ("POST", "/api/reviews/{review_id}/comments"),
         ("PATCH", "/api/comments/{comment_id}"),
@@ -294,6 +295,29 @@ def test_author_comes_from_the_member_not_the_request(client, member):
     body = create(client, member, author_name="Someone Else").json()
     assert body["author_name"] == "Asha"
     assert edit(client, member, body["id"]).json()["author_name"] == "Asha"
+
+
+# Pages in a review.
+
+
+def pages(client, person):
+    return client.get(f"/api/reviews/{person['id']}/pages", headers=auth(person))
+
+
+def test_pages_list_only_pages_with_comments_and_count_them(client, owner, member, outsider):
+    assert pages(client, owner).json() == []
+    create(client, owner)
+    create(client, member)
+    last = create(client, owner, url="https://example.com/about").json()["id"]
+    create(client, outsider, url="https://elsewhere.example/")
+    expected = [
+        {"url": "https://example.com/about", "comment_count": 1},
+        {"url": URL, "comment_count": 2},
+    ]
+    assert pages(client, owner).json() == expected
+    assert pages(client, member).json() == expected
+    remove(client, owner, last)
+    assert pages(client, owner).json() == [{"url": URL, "comment_count": 2}]
 
 
 # Comments, as in V4.
