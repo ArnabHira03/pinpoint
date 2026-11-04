@@ -1,11 +1,12 @@
 to run:
 
-Backend:
+backend-
+cd ~/Desktop/Dev/markdrop_v2/backend
+source .venv/bin/activate
+pip install -r requirements.txt   # only needed if dependencies are missing
+uvicorn app.main:app --reload --port 8000
 
- python3 -m venv .venv                              # first time only
- .venv/bin/pip install -r requirements.txt          # first time only
- .venv/bin/uvicorn main:app --reload
-
-
-Frontend:
- npm run dev
+frontend- 
+cd ~/Desktop/Dev/markdrop_v2/frontend
+npm install   # only needed if dependencies are missing
+npm run dev

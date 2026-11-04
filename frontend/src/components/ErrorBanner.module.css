@@ -1,0 +1,19 @@
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--danger-border);
+  border-radius: 8px;
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.message {
+  flex: 1;
+}
+
+.banner :global(.icon) {
+  color: inherit;
+}

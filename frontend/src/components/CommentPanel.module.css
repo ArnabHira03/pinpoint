@@ -1,0 +1,32 @@
+.panel {
+  padding: 12px;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 4px 8px;
+  font-size: 1rem;
+}
+
+.count {
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.empty {
+  margin: 0 4px;
+  color: var(--muted);
+}
+
+.list {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

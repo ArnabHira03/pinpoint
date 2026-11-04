@@ -1,8 +1,17 @@
-import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+/// <reference types="vitest/config" />
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
-  // Forward API calls to FastAPI so the browser sees a single origin (no CORS setup needed).
-  server: { proxy: { '/api': 'http://127.0.0.1:8000' } },
-})
+  server: {
+    proxy: {
+      "/api": "http://localhost:8000",
+    },
+  },
+  test: {
+    environment: "jsdom",
+    globals: true,
+    setupFiles: ["./src/setupTests.ts"],
+  },
+});
