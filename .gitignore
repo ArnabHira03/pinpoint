@@ -12,3 +12,6 @@ dist/
 .env.*
 !.env.example
 backend/backups/
+*.db
+*.sqlite3
+*.sql
