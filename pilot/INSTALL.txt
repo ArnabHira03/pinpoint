@@ -1,0 +1,73 @@
+PINPOINT: HOW TO JOIN A REVIEW
+
+Pinpoint lets you drop numbered comment pins on a live web page. Other people in the
+review see your pins. It works in Chrome and Brave on a computer, not on a phone.
+
+
+INSTALL (about 2 minutes)
+
+1. Unzip the file. You get a folder called "pinpoint". On Windows, right-click the zip and
+   choose "Extract All" first; just double-clicking it won't work. The "pinpoint" folder may
+   be inside another folder with the zip's name.
+2. Move that folder somewhere permanent, such as your Documents folder.
+
+   IMPORTANT: leave the folder there and don't delete it. The browser runs Pinpoint from
+   it. If the folder is moved or deleted, Pinpoint stops working. After loading it again
+   you join as a new person and can't change your earlier comments.
+
+3. Open chrome://extensions in Chrome, or brave://extensions in Brave.
+4. Turn on "Developer mode" (top right).
+5. Click "Load unpacked" and choose the "pinpoint" folder. If you see "Manifest file is
+   missing", you chose the wrong folder: pick the one with manifest.json directly inside it.
+6. Click the puzzle-piece icon in the toolbar and pin Pinpoint so it's easy to reach.
+
+The browser may warn you about developer-mode extensions. That is expected, because
+Pinpoint is shared directly and not through a web store.
+
+
+JOIN THE REVIEW
+
+1. Click the Pinpoint icon.
+2. Enter your name. Others will see it on your comments, and you can't change it later.
+3. Paste the share code you were sent into the "Share code" box and click Join.
+
+The first request can take about a minute while the server wakes up. Please wait for it.
+
+
+LEAVE A COMMENT
+
+1. Open the page you were asked to review.
+2. Click the Pinpoint icon, then "Comment on this page".
+3. Click a spot on the page, type your comment, and save it.
+
+After a page loads or reloads, click the icon and "Comment on this page" again to see the pins.
+
+Good to know:
+- Links and buttons on the page don't respond while commenting, so clicks can't open
+  anything by accident. To use the page normally, click the icon and "Comment on this
+  page" again to turn commenting off.
+- The comment panel covers the right edge of the page. Click "Hide" to reach what's under it.
+- New comments from other people appear within about 5 seconds while you're commenting.
+- You can edit or delete your own comments, but not other people's.
+- Pinpoint can't run on browser pages such as chrome://extensions, or on web store pages.
+
+
+PRIVACY
+
+These are saved on the review's server and can be seen by people in the review: your name,
+your comments, the address of each page you comment on, and a short piece of text from
+the part of the page you clicked. Please don't comment on pages showing private information.
+
+
+IF YOU GET AN UPDATE
+
+Replace the files inside the same "pinpoint" folder. Then open the extensions page and click
+the reload icon on the Pinpoint card. Keep the folder in the same place.
+
+
+WHEN YOU'VE FINISHED
+
+Please tell the person who invited you:
+1. What was confusing?
+2. What broke or didn't work? Include the page address if you can.
+3. What did you want to do but couldn't?

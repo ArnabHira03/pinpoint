@@ -1,0 +1,18 @@
+Hi [NAME],
+
+Could you help me test Pinpoint, a small browser extension for leaving comments directly on
+a web page? It should take about 15 minutes, on a computer using Chrome or Brave.
+
+Page to review: [PAGE LINK]
+What I'd like your opinion on: [WHAT TO LOOK AT]
+Please finish by: [DATE]
+Share code: [SHARE CODE]
+
+Please keep the code to yourself, because anyone who has it can join the review.
+
+To get started, unzip the attached file and follow INSTALL.txt inside it.
+
+It's an early test, so things may go wrong, and that is useful to know. When you're done,
+please tell me what was confusing, what broke, and what you wanted to do but couldn't.
+
+Thanks!
