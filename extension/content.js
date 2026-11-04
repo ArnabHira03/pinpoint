@@ -160,12 +160,19 @@
   // its comment box open, so nothing typed is lost.
   const api = async (request) => {
     let result;
+    // A sleeping server takes a while to answer, which shouldn't look like a hang.
+    const slowNotice = setTimeout(() => {
+      errorMessage = "Waking the server. This can take about a minute.";
+      renderPanel();
+    }, 3000);
     try {
       result = await chrome.runtime.sendMessage(request);
     } catch {
       errorMessage = "Pinpoint was updated. Reload the page and try again.";
       render();
       return null;
+    } finally {
+      clearTimeout(slowNotice);
     }
     if (result?.ok) {
       errorMessage = "";
@@ -323,7 +330,7 @@
     }
   };
 
-  const renderRow = ({ number, comment, authorName }) => {
+  const renderRow = ({ number, comment, authorName, canEdit, canDelete }) => {
     const row = el("div", number === selected ? "row selected" : "row");
     row.dataset.number = number;
     row.append(el("span", "number", String(number)), el("span", "author", authorName || "Unknown"));
@@ -364,19 +371,26 @@
         button("Confirm delete", "danger", () => deletePin(number))
       );
     } else {
-      actions.append(
-        button("Edit", "", () => {
-          editing = number;
-          editingText = comment;
-          confirmingDelete = null;
-          render();
-          panel.querySelector("textarea")?.focus();
-        }),
-        button("Delete", "", () => {
-          confirmingDelete = number;
-          render();
-        })
-      );
+      // Only offer what the server allows this person to do.
+      if (canEdit) {
+        actions.append(
+          button("Edit", "", () => {
+            editing = number;
+            editingText = comment;
+            confirmingDelete = null;
+            render();
+            panel.querySelector("textarea")?.focus();
+          })
+        );
+      }
+      if (canDelete) {
+        actions.append(
+          button("Delete", "", () => {
+            confirmingDelete = number;
+            render();
+          })
+        );
+      }
     }
     row.append(actions);
     row.addEventListener("click", () => select(number, { scrollToPin: true }));

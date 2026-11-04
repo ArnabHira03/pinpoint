@@ -7,14 +7,16 @@
   </head>
   <body>
     <label for="name">Your name</label>
-    <input id="name" maxlength="50" placeholder="Shown on your comments" autocomplete="name" />
+    <input id="name" maxlength="50" placeholder="Needed to create or join a review" autocomplete="name" />
 
     <label for="review">Review</label>
     <select id="review"></select>
     <p id="no-reviews" class="hint">Create a review, or join one with a share code.</p>
+    <p id="identity" class="hint"></p>
     <p id="share" class="share">
       Share code: <code id="code"></code>
       <button id="copy" type="button">Copy</button>
+      <button id="new-code" type="button" title="The old code stops working. People already in the review stay in.">New code</button>
     </p>
 
     <form id="create-form" class="row">

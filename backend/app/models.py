@@ -19,58 +19,8 @@ def new_share_code() -> str:
     return "".join(secrets.choice(SHARE_CODE_ALPHABET) for _ in range(8))
 
 
-class Project(Base):
-    __tablename__ = "projects"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(100))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-
-    screenshots: Mapped[list["Screenshot"]] = relationship(
-        back_populates="project", cascade="all, delete-orphan", passive_deletes=True
-    )
-
-
-class Screenshot(Base):
-    __tablename__ = "screenshots"
-    __table_args__ = (Index("ix_screenshots_project_created", "project_id", "created_at"),)
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), index=True)
-    filename: Mapped[str] = mapped_column(Text, unique=True)
-    original_filename: Mapped[str] = mapped_column(Text)
-    mime_type: Mapped[str] = mapped_column(Text)
-    file_size: Mapped[int] = mapped_column(Integer)
-    width: Mapped[int] = mapped_column(Integer)
-    height: Mapped[int] = mapped_column(Integer)
-    next_annotation_number: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-
-    project: Mapped[Project] = relationship(back_populates="screenshots")
-    annotations: Mapped[list["Annotation"]] = relationship(
-        back_populates="screenshot", cascade="all, delete-orphan", passive_deletes=True
-    )
-
-
-class Annotation(Base):
-    __tablename__ = "annotations"
-    __table_args__ = (
-        UniqueConstraint("screenshot_id", "number"),
-        CheckConstraint("x BETWEEN 0 AND 1", name="ck_annotations_x"),
-        CheckConstraint("y BETWEEN 0 AND 1", name="ck_annotations_y"),
-    )
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    screenshot_id: Mapped[int] = mapped_column(ForeignKey("screenshots.id", ondelete="CASCADE"))
-    number: Mapped[int] = mapped_column(Integer)
-    x: Mapped[float]
-    y: Mapped[float]
-    comment: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-
-    screenshot: Mapped[Screenshot] = relationship(back_populates="annotations")
+ROLE_OWNER = "owner"
+ROLE_MEMBER = "member"
 
 
 class Review(Base):
@@ -84,6 +34,28 @@ class Review(Base):
     pages: Mapped[list["ReviewPage"]] = relationship(
         back_populates="review", cascade="all, delete-orphan", passive_deletes=True
     )
+    members: Mapped[list["ReviewMember"]] = relationship(
+        back_populates="review", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+
+class ReviewMember(Base):
+    """One person's access to one review. Only a hash of their key is stored."""
+
+    __tablename__ = "review_members"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    review_id: Mapped[int] = mapped_column(ForeignKey("reviews.id", ondelete="CASCADE"), index=True)
+    key_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    display_name: Mapped[str] = mapped_column(String(50))
+    role: Mapped[str] = mapped_column(String(10), default=ROLE_MEMBER)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    review: Mapped[Review] = relationship(back_populates="members")
+
+    @property
+    def is_owner(self) -> bool:
+        return self.role == ROLE_OWNER
 
 
 class ReviewPage(Base):
@@ -113,6 +85,7 @@ class WebComment(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     page_id: Mapped[int] = mapped_column(ForeignKey("review_pages.id", ondelete="CASCADE"))
+    member_id: Mapped[int | None] = mapped_column(ForeignKey("review_members.id", ondelete="SET NULL"))
     number: Mapped[int] = mapped_column(Integer)
     author_name: Mapped[str] = mapped_column(Text, default="", server_default="")
     selector: Mapped[str] = mapped_column(Text)

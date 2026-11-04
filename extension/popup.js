@@ -8,6 +8,17 @@ const showMessage = (text) => {
   $("message").textContent = text;
 };
 
+// A sleeping server takes a while to answer, which shouldn't look like a hang.
+const ask = async (request) => {
+  const slowNotice = setTimeout(() => showMessage("Waking the server. This can take about a minute."), 3000);
+  try {
+    return await chrome.runtime.sendMessage(request);
+  } finally {
+    clearTimeout(slowNotice);
+    showMessage("");
+  }
+};
+
 const render = () => {
   const active = reviews.find((review) => review.id === activeReviewId);
   $("review").replaceChildren(
@@ -21,10 +32,13 @@ const render = () => {
   if (active) $("review").value = active.id;
   $("review").hidden = !active;
   $("no-reviews").hidden = Boolean(active);
-  $("share").hidden = !active;
+  // Only the owner gets a share code from the server.
+  $("share").hidden = !active?.shareCode;
+  $("identity").hidden = !active;
+  $("identity").textContent = active ? `You comment here as ${active.displayName}. Your role: ${active.role}.` : "";
   $("code").textContent = active?.shareCode ?? "";
-  $("start").disabled = !active || !$("name").value.trim();
-  $("start").title = $("start").disabled ? "Enter your name and choose a review first" : "";
+  $("start").disabled = !active;
+  $("start").title = active ? "" : "Choose a review first";
 };
 
 const saveReviews = () => chrome.storage.local.set({ reviews, activeReviewId });
@@ -44,8 +58,14 @@ const submitReview = async (action, field, value) => {
     input.focus();
     return;
   }
+  const displayName = $("name").value.trim();
+  if (!displayName) {
+    showMessage("Enter your name first. It's shown on your comments in this review.");
+    $("name").focus();
+    return;
+  }
   showMessage("");
-  const result = await chrome.runtime.sendMessage({ action, [value]: text });
+  const result = await ask({ action, [value]: text, displayName });
   if (!result?.ok) {
     // What was typed stays in the box, ready to try again.
     showMessage(result?.message ?? OFFLINE_FALLBACK);
@@ -83,6 +103,17 @@ $("copy").addEventListener("click", async () => {
   } catch {
     showMessage("Couldn't copy. Select the code and copy it by hand.");
   }
+});
+
+$("new-code").addEventListener("click", async () => {
+  showMessage("");
+  const result = await ask({ action: "replaceShareCode", reviewId: activeReviewId });
+  if (!result?.ok) {
+    showMessage(result?.message ?? OFFLINE_FALLBACK);
+    return;
+  }
+  $("copy").textContent = "Copy";
+  await useReview(result.review);
 });
 
 $("start").addEventListener("click", async () => {
